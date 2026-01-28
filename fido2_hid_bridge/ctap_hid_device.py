@@ -13,12 +13,14 @@ except:
     PCSCContext = None
 from smartcard.scard import SCardReleaseContext
 
-SECONDS_TO_WAIT_FOR_AUTHENTICATOR = 10
+SECONDS_TO_WAIT_FOR_AUTHENTICATOR = 30
 """How long, in seconds, to poll for a USB authenticator before giving up."""
 VID = 0x9999
-"""USB vendor ID."""
+"""USB vendor ID (virtual device)."""
 PID = 0x9999
-"""USB product ID."""
+"""USB product ID (virtual device)."""
+DEVICE_NAME = "Cryptnox FIDO2 Virtual Device"
+"""Name of the virtual HID device."""
 
 BROADCAST_CHANNEL = bytes([0xFF, 0xFF, 0xFF, 0xFF])
 """Standard CTAP-HID broadcast channel."""
@@ -66,7 +68,7 @@ class CTAPHIDDevice:
         self.device = UHIDDevice(
             vid=VID,
             pid=PID,
-            name="FIDO2 Virtual USB Device",
+            name=DEVICE_NAME,
             report_descriptor=[
                 0x06,
                 0xD0,
@@ -235,7 +237,7 @@ class CTAPHIDDevice:
         if self.chosen_device is None:
             start_time = time.time()
             while time.time() < start_time + SECONDS_TO_WAIT_FOR_AUTHENTICATOR:
-                logging.info("WAITING FOR NEW DEVICE")
+                logging.info("Waiting for Cryptnox card... (place card on reader)")
                 devices = list(CtapPcscDevice.list_devices())
                 if len(devices) == 0:
                     time.sleep(0.1)

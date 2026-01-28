@@ -1,18 +1,35 @@
 [tool.poetry]
-name = "fido2-hid-bridge"
-version = "0.1.0"
-description = ""
-authors = ["Bryan Jacobs <b@q3q.us>"]
+name = "cryptnox-fido2-bridge"
+version = "1.0.0"
+description = "FIDO2 HID Bridge for Cryptnox Smartcards - Enables WebAuthn in browsers"
+authors = [
+    "Cryptnox SA <support@cryptnox.com>",
+    "Bryan Jacobs <b@q3q.us>"
+]
 readme = "README.md"
+license = "MIT"
+homepage = "https://cryptnox.com"
+repository = "https://github.com/Cryptnox/cryptnox-fido2-bridge"
+keywords = ["fido2", "webauthn", "smartcard", "cryptnox", "pcsc", "authentication"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Hardware",
+]
 packages = [{include = "fido2_hid_bridge"}]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.9"
 uhid = "^0.0.1"
 fido2 = {extras = ["pcsc"], version = "^2.0.0"}
-pyscard = "2.3.1"
+pyscard = ">=2.0.0"
 
 [tool.poetry.scripts]
+cryptnox-fido2-bridge = 'fido2_hid_bridge.bridge:main'
+# Keep old name for backwards compatibility
 fido2-hid-bridge = 'fido2_hid_bridge.bridge:main'
 
 [build-system]

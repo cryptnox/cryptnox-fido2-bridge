@@ -1,0 +1,27 @@
+[Unit]
+Description=Cryptnox FIDO2 Bridge - WebAuthn support for Cryptnox smartcards
+After=auditd.service syslog.target network.target local-fs.target pcscd.service
+Requires=pcscd.service
+
+[Service]
+# Option 1: If installed via pip/pipx to /usr/local
+ExecStart=/usr/local/bin/cryptnox-fido2-bridge --quiet
+# Option 2: If installed in a specific directory
+# WorkingDirectory=/opt/cryptnox-fido2-bridge
+# ExecStart=/opt/cryptnox-fido2-bridge/.venv/bin/cryptnox-fido2-bridge --quiet
+
+Type=simple
+Restart=on-failure
+RestartSec=10s
+
+# Security settings
+NoNewPrivileges=false
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cryptnox-fido2-bridge
+
+[Install]
+WantedBy=multi-user.target

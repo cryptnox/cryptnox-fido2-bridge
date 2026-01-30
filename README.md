@@ -1,11 +1,17 @@
-# Cryptnox FIDO2 Bridge
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/6ce54a27-8fb6-48e6-9d1f-da144f43425a"/>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<h3 align="center">cryptnox-fido2-bridge</h3>
+<p align="center">Enables **WebAuthn/FIDO2** authentication in browsers using your **Cryptnox smartcard** via PC/SC interface</p>
+
+<br/>
+<br/>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-Enables **WebAuthn/FIDO2** authentication in browsers using your **Cryptnox smartcard** via PC/SC interface.
-
-## What It Does
+## How It Works
 
 This bridge creates a virtual USB-HID device that translates browser FIDO2 requests to PC/SC commands.
 
@@ -15,6 +21,14 @@ This bridge creates a virtual USB-HID device that translates browser FIDO2 reque
 │   (Chrome)   │                  │    (Virtual Device)    │               │    Card     │
 └──────────────┘                  └────────────────────────┘               └─────────────┘
 ```
+
+1. The bridge creates a **virtual USB-HID device** using Linux's UHID facility
+2. When a browser sends a **FIDO2/CTAP2 command** via USB-HID
+3. The bridge **translates** it to **PC/SC APDUs**
+4. Commands are sent to your **Cryptnox card** via the card reader
+5. Responses are **translated back** and sent to the browser
+
+This enables using PC/SC smartcards (like Cryptnox) in browsers that only support USB-HID authenticators.
 
 ## Requirements
 
@@ -113,16 +127,6 @@ sudo systemctl restart pcscd
 # Test card detection
 pcsc_scan
 ```
-
-## How It Works
-
-1. The bridge creates a **virtual USB-HID device** using Linux's UHID facility
-2. When a browser sends a **FIDO2/CTAP2 command** via USB-HID
-3. The bridge **translates** it to **PC/SC APDUs**
-4. Commands are sent to your **Cryptnox card** via the card reader
-5. Responses are **translated back** and sent to the browser
-
-This enables using PC/SC smartcards (like Cryptnox) in browsers that only support USB-HID authenticators.
 
 ## Security Notes
 

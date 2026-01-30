@@ -39,11 +39,32 @@ This enables using PC/SC smartcards (like Cryptnox) in browsers that only suppor
 
 ## Installation
 
+### Option 1: Using pipx (Recommended)
+
 ```bash
 # Install dependencies and start PC/SC daemon
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx
 sudo systemctl enable --now pcscd
+
+# Install the bridge using pipx
+pipx install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
+
+# Run (use full path or add ~/.local/bin to PATH)
+sudo -E ~/.local/bin/cryptnox-fido2-bridge
+```
+
+### Option 2: Using Virtual Environment
+
+```bash
+# Install dependencies and start PC/SC daemon
+sudo apt update
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv
+sudo systemctl enable --now pcscd
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
 # Install the bridge
 pip install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
@@ -52,13 +73,21 @@ pip install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
 sudo -E cryptnox-fido2-bridge
 ```
 
-<b>Alternative: Install from source</b>
+### Option 3: Install from Source (Development)
 
 ```bash
+# Install dependencies
+sudo apt update
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv
+sudo systemctl enable --now pcscd
+
+# Clone and install
 git clone https://github.com/Cryptnox/cryptnox-fido2-bridge.git
 cd cryptnox-fido2-bridge
 pip install poetry
 poetry install
+
+# Run
 sudo -E poetry run cryptnox-fido2-bridge
 ```
 
@@ -100,6 +129,19 @@ cryptnox-fido2-bridge --version
 | **Firefox** | ⚠️ Limited | Stricter security policy |
 
 ## Troubleshooting
+
+### Command not found with pipx and sudo
+
+If you installed with `pipx` and get "command not found" when using `sudo`:
+
+```bash
+# Use the full path
+sudo -E ~/.local/bin/cryptnox-fido2-bridge
+
+# Or add ~/.local/bin to your PATH (add to ~/.bashrc)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 ### Permission denied on /dev/uhid
 

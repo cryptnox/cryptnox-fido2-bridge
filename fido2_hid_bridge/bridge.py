@@ -19,19 +19,15 @@ from fido2_hid_bridge.ctap_hid_device import CTAPHIDDevice
 
 __version__ = "1.0.0"
 
-BANNER = """
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║                 Cryptnox FIDO2 Bridge v{version}              ║
-║                                                               ║
-║  Enables WebAuthn/FIDO2 authentication in browsers using      ║
-║  your Cryptnox smartcard via PC/SC interface.                 ║
-║                                                               ║
-║  Based on fido2-hid-bridge by Bryan Jacobs                    ║
-║  Supported browsers: Chrome, Chromium                         ║
-║  Press Ctrl+C to stop                                         ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
+STARTUP_INFO = """
+Cryptnox FIDO2 Bridge v{version}
+
+Enables WebAuthn/FIDO2 authentication in browsers using
+your Cryptnox smartcard via PC/SC interface.
+
+Based on fido2-hid-bridge by Bryan Jacobs
+Supported browsers: Chrome, Chromium
+Press Ctrl+C to stop
 """.format(version=__version__)
 
 
@@ -69,7 +65,7 @@ def main():
     parser.add_argument(
         '--quiet', '-q',
         action='store_true',
-        help='Suppress banner output'
+        help='Suppress startup info output'
     )
     args = parser.parse_args()
     
@@ -84,9 +80,9 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Show banner
+    # Show startup info
     if not args.quiet:
-        print(BANNER)
+        print(STARTUP_INFO)
     
     logging.info("Starting Cryptnox FIDO2 Bridge...")
     logging.info("Waiting for Cryptnox card...")

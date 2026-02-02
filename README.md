@@ -44,7 +44,7 @@ This enables using PC/SC smartcards (like Cryptnox) in browsers that only suppor
 ```bash
 # Install dependencies and start PC/SC daemon
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3-dev build-essential
 sudo systemctl enable --now pcscd
 
 # Install the bridge using pipx
@@ -59,7 +59,7 @@ sudo -E ~/.local/bin/cryptnox-fido2-bridge
 ```bash
 # Install dependencies and start PC/SC daemon
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
 sudo systemctl enable --now pcscd
 
 # Create and activate virtual environment
@@ -78,7 +78,7 @@ sudo -E cryptnox-fido2-bridge
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
 sudo systemctl enable --now pcscd
 
 # Clone and install

@@ -170,6 +170,17 @@ sudo systemctl restart pcscd
 pcsc_scan
 ```
 
+## CryptnoxCR reader not recognized
+
+If pcsc_scan doesn't detect your CryptnoxCR contact reader (shows "Waiting for the first reader..."), add it to the CCID driver:
+
+```bash
+sudo sed -i -e '/<key>ifdVendorID<\/key>/,/<\/array>/{/<array>/a\    <string>0x05F8</string>
+}' -e '/<key>ifdProductID<\/key>/,/<\/array>/{/<array>/a\    <string>0x0018</string>
+}' -e '/<key>ifdFriendlyName<\/key>/,/<\/array>/{/<array>/a\    <string>CryptnoxCR Contact Reader</string>
+}' /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist && sudo systemctl restart pcscd.socket pcscd && pcsc_scan
+```
+
 ## Security Notes
 
 - The bridge runs locally and does not transmit data over the network

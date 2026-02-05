@@ -3,7 +3,7 @@
 </p>
 
 <h3 align="center">cryptnox-fido2-bridge</h3>
-<p align="center">Enables **WebAuthn/FIDO2** authentication in browsers using your **Cryptnox smartcard** via PC/SC interface</p>
+<p align="center">Enables WebAuthn/FIDO2 authentication in browsers using your Cryptnox smartcard via PC/SC interface</p>
 
 <br/>
 <br/>
@@ -11,9 +11,21 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-## How It Works
+`cryptnox-fido2-bridge` is a Python bridge that creates a virtual USB-HID device, enabling browsers to use Cryptnox smartcards for **WebAuthn/FIDO2** authentication. It translates CTAP2 commands from the browser into PC/SC APDUs for the card.
 
-This bridge creates a virtual USB-HID device that translates browser FIDO2 requests to PC/SC commands.
+---
+
+## Supported hardware
+
+- **Cryptnox smart cards** with FIDO2 applet 💳
+- **Standard PC/SC smart card readers**: either USB NFC reader or a USB smart card reader
+  → Readers are also available in the Cryptnox shop.
+
+Get your cards and readers here: [shop.cryptnox.com](https://shop.cryptnox.com)
+
+---
+
+## How it works
 
 ```
 ┌──────────────┐     USB-HID      ┌────────────────────────┐     PC/SC     ┌─────────────┐
@@ -30,50 +42,14 @@ This bridge creates a virtual USB-HID device that translates browser FIDO2 reque
 
 This enables using PC/SC smartcards (like Cryptnox) in browsers that only support USB-HID authenticators.
 
-## Requirements
-
-- **Linux** (Ubuntu 20.04+, Debian 11+, or similar)
-- **Python 3.9+**
-- **PC/SC compatible smartcard reader**
-- **Cryptnox card** with FIDO2 applet
+---
 
 ## Installation
 
-### Option 1: Using pipx (Recommended)
+> [!IMPORTANT]
+> This bridge requires **Linux** (Ubuntu 20.04+, Debian 11+, or similar) with Python 3.9+.
 
-```bash
-# Install dependencies and start PC/SC daemon
-sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3-dev build-essential
-sudo systemctl enable --now pcscd
-
-# Install the bridge using pipx
-pipx install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
-
-# Run (use full path or add ~/.local/bin to PATH)
-sudo -E ~/.local/bin/cryptnox-fido2-bridge
-```
-
-### Option 2: Using Virtual Environment
-
-```bash
-# Install dependencies and start PC/SC daemon
-sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
-sudo systemctl enable --now pcscd
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install the bridge
-pip install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
-
-# Run
-sudo -E cryptnox-fido2-bridge
-```
-
-### Option 3: Install from Source (Development)
+### From source (Recommended)
 
 ```bash
 # Install dependencies
@@ -91,7 +67,48 @@ poetry install
 sudo -E poetry run cryptnox-fido2-bridge
 ```
 
-## Usage
+### Using pipx
+
+```bash
+# Install dependencies
+sudo apt update
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3-dev build-essential
+sudo systemctl enable --now pcscd
+
+# Install the bridge
+pipx install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
+
+# Run (use full path or add ~/.local/bin to PATH)
+sudo -E ~/.local/bin/cryptnox-fido2-bridge
+```
+
+### Using virtual environment
+
+```bash
+# Install dependencies
+sudo apt update
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
+sudo systemctl enable --now pcscd
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install the bridge
+pip install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
+
+# Run
+sudo -E cryptnox-fido2-bridge
+```
+
+---
+
+## Quick usage examples
+
+> [!TIP]
+> Supported browsers: **Chrome** (recommended), Chromium. Firefox and Brave have limited support due to stricter security policies.
+
+### 1. Basic usage
 
 1. **Connect** your smartcard reader to your computer
 2. **Insert** your Cryptnox card (or place on NFC reader)
@@ -104,7 +121,7 @@ sudo -E poetry run cryptnox-fido2-bridge
    - https://demo.yubico.com/webauthn-technical/registration
 5. **Register** or **Authenticate** - the bridge will communicate with your card!
 
-### Command Line Options
+### 2. Command line options
 
 ```bash
 # Show help
@@ -120,13 +137,7 @@ sudo -E cryptnox-fido2-bridge --quiet
 cryptnox-fido2-bridge --version
 ```
 
-## Browser Compatibility
-
-| Browser | Status | Notes |
-|---------|--------|-------|
-| **Chrome** | ✅ Works | Recommended |
-| **Brave** | ⚠️ Limited | May block virtual HID |
-| **Firefox** | ⚠️ Limited | Stricter security policy |
+---
 
 ## Troubleshooting
 
@@ -170,7 +181,7 @@ sudo systemctl restart pcscd
 pcsc_scan
 ```
 
-## CryptnoxCR reader not recognized
+### CryptnoxCR reader not recognized
 
 If pcsc_scan doesn't detect your CryptnoxCR contact reader (shows "Waiting for the first reader..."), add it to the CCID driver:
 
@@ -181,15 +192,21 @@ sudo sed -i -e '/<key>ifdVendorID<\/key>/,/<\/array>/{/<array>/a\    <string>0x0
 }' /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist && sudo systemctl restart pcscd.socket pcscd && pcsc_scan
 ```
 
-## Security Notes
+---
+
+## Security notes
 
 - The bridge runs locally and does not transmit data over the network
 - Private keys never leave your Cryptnox card
 - The virtual HID device is only accessible locally
 
+---
+
 ## Credits
 
 Based on [fido2-hid-bridge](https://github.com/BryanJacobs/fido2-hid-bridge) by Bryan Jacobs.
+
+---
 
 ## License
 

@@ -9,7 +9,7 @@
 <br/>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 
 `cryptnox-fido2-bridge` is a Linux-only Python bridge that creates a virtual USB-HID device, enabling browsers to use FIDO2 smart cards for **WebAuthn/FIDO2** authentication. It translates CTAP2 commands from the browser into PC/SC APDUs for the card.
 
@@ -60,14 +60,14 @@ This enables using PC/SC smartcards in browsers that only support USB-HID authen
 ## Installation
 
 > [!IMPORTANT]
-> This bridge requires **Linux** (Ubuntu 20.04+, Debian 11+, or similar) with Python 3.9+.
+> This bridge requires **Linux** (Ubuntu 22.04+, Debian 12+, or similar) with **Python 3.12 or newer** in the 3.x line (`^3.12` in `pyproject.toml`; `.python-version` pins **3.12** for local development).
 
 ### From source
 
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3.12-venv python3.12-dev build-essential libffi-dev
 sudo systemctl enable --now pcscd
 
 # Clone and install
@@ -85,7 +85,7 @@ sudo -E poetry run cryptnox-fido2-bridge
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3-dev build-essential
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3.12-dev build-essential libffi-dev
 sudo systemctl enable --now pcscd
 
 # Install the bridge
@@ -100,11 +100,11 @@ sudo -E ~/.local/bin/cryptnox-fido2-bridge
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3-venv python3-dev build-essential
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3.12-venv python3.12-dev build-essential libffi-dev
 sudo systemctl enable --now pcscd
 
-# Create and activate virtual environment
-python3 -m venv venv
+# Create and activate virtual environment (use 3.12 to match this repo)
+python3.12 -m venv venv
 source venv/bin/activate
 
 # Install the bridge
@@ -167,6 +167,17 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
+### Command not found with Poetry and sudo
+
+`sudo` resets `PATH`, so `poetry` is often missing. Use the full path or preserve `PATH`:
+
+```bash
+sudo -E ~/.local/bin/poetry run cryptnox-fido2-bridge
+
+# Or
+sudo -E env "PATH=$PATH" poetry run cryptnox-fido2-bridge
+```
+
 ### Permission denied on /dev/uhid
 
 If you get a permission error when running the bridge, the current user does not have access to the UHID device. You can fix this temporarily or permanently:
@@ -197,6 +208,30 @@ sudo systemctl restart pcscd
 # Test card detection
 pcsc_scan
 ```
+
+### CryptnoxCR reader and CCID (PC/SC)
+
+The **CryptnoxCR** USB contact reader (`0x05F8:0x0018`) is listed in upstream **CCID** from **[version 1.7.1](https://github.com/LudovicRousseau/CCID/releases/tag/1.7.1)** onward. That driver is what `pcscd` uses (via the `libccid` / `ifd-ccid` bundle on Debian and Ubuntu).
+
+**What to do:**
+
+1. Prefer **upgrading `libccid`** (and restarting `pcscd`) so `pcsc_scan` shows the reader without editing system files. Check your package version, for example:
+
+   ```bash
+   dpkg -s libccid | grep ^Version:
+   ```
+
+2. If your distribution still ships **CCID older than 1.7.1** and the reader never appears in `pcsc_scan`, either wait for a distro update or add the device to the CCID `Info.plist` (back up the file first), then restart `pcscd`:
+
+   ```bash
+   sudo cp /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist.backup
+   sudo sed -i -e '/<key>ifdVendorID<\/key>/,/<\/array>/{/<array>/a\		<string>0x05F8</string>
+   }' -e '/<key>ifdProductID<\/key>/,/<\/array>/{/<array>/a\		<string>0x0018</string>
+   }' -e '/<key>ifdFriendlyName<\/key>/,/<\/array>/{/<array>/a\		<string>CryptnoxCR Contact Reader</string>
+   }' /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist && sudo systemctl restart pcscd.socket pcscd && pcsc_scan
+   ```
+
+`pcsc_scan` itself is only a **test tool** from `pcsc-tools`; it does not ship reader definitions. Seeing **CryptnoxCR** there means `pcscd` + CCID already know the device.
 
 ---
 

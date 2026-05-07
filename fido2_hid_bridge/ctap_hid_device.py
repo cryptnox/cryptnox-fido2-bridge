@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from enum import IntEnum
 from random import randint
@@ -11,7 +12,15 @@ try:
     from smartcard.pcsc.PCSCContext import PCSCContext
 except:
     PCSCContext = None
-from smartcard.scard import SCardReleaseContext
+from smartcard.scard import (
+    SCardReleaseContext,
+    SCardEstablishContext as _SCardEstablishContext,
+    SCardListReaders as _SCardListReaders,
+    SCardGetStatusChange as _SCardGetStatusChange,
+    SCARD_SCOPE_USER as _SCARD_SCOPE_USER,
+    SCARD_STATE_UNAWARE as _SCARD_STATE_UNAWARE,
+    SCARD_STATE_PRESENT as _SCARD_STATE_PRESENT,
+)
 
 SECONDS_TO_WAIT_FOR_AUTHENTICATOR = 30
 """How long, in seconds, to poll for a USB authenticator before giving up."""
@@ -64,7 +73,9 @@ class CTAPHIDDevice:
     reference_count = 0
     """Number of open handles to the device: clear state when it hits zero."""
 
-    def __init__(self):
+    def __init__(self, require_up: bool = True):
+        self.require_up = require_up
+        self._up_confirmed: bool = False
         self.device = UHIDDevice(
             vid=VID,
             pid=PID,
@@ -145,6 +156,7 @@ class CTAPHIDDevice:
         if self.reference_count == 0:
             # Clear all state
             self.channels_to_state = {}
+            self._up_confirmed = False
             self._close_pcsc_connection()
 
     def process_hid_message(self, buffer: List[int], report_type: _ReportType) -> None:
@@ -260,18 +272,145 @@ class CTAPHIDDevice:
 
         return self.chosen_device
 
+    @staticmethod
+    def _get_client_pin_sub_command(buffer: bytes) -> Optional[int]:
+        """Extract subCommand from an authenticatorClientPIN (0x06) CBOR payload.
+
+        CTAP2 canonical CBOR maps have unsigned-integer keys in ascending order,
+        so key 0x01 (pinUvAuthProtocol) always precedes key 0x02 (subCommand).
+        """
+        if len(buffer) < 4:
+            return None
+        first_key = buffer[2]
+        if first_key == 0x02:
+            return buffer[3]
+        if first_key == 0x01 and len(buffer) >= 6 and buffer[4] == 0x02:
+            return buffer[5]
+        return None
+
+    def _send_keepalive(self, channel: List[int], status: int) -> None:
+        packets = self.encode_response_packets(channel, CommandType.KEEPALIVE, bytes([status]))
+        for pkt in packets:
+            self.device.send_input(pkt)
+
+    def _is_card_on_reader(self) -> bool:
+        """Check physical card presence using a short-lived, independent SCard context."""
+        try:
+            hresult, hctx = _SCardEstablishContext(_SCARD_SCOPE_USER)
+            if hresult != 0:
+                return False
+            try:
+                hresult, reader_names = _SCardListReaders(hctx, [])
+                if hresult != 0 or not reader_names:
+                    return False
+                hresult, states = _SCardGetStatusChange(
+                    hctx, 0, [(reader_names[0], _SCARD_STATE_UNAWARE)]
+                )
+                if hresult != 0 or not states:
+                    return False
+                return bool(states[0][1] & _SCARD_STATE_PRESENT)
+            finally:
+                SCardReleaseContext(hctx)
+        except Exception:
+            return False
+
+    def _wait_for_card_tap(self, channel: List[int], timeout: int = 30) -> bool:
+        """
+        Gate execution on a physical card tap (remove then reinsert).
+
+        Closes the current PC/SC session, monitors the reader for card removal
+        followed by reinsertion, and sends KEEPALIVE STATUS_UPNEEDED every 500 ms
+        so the browser shows "Touch your security key".  Returns True on confirmation.
+        """
+        print(
+            "\n[!] User presence required — remove the card from the reader, "
+            "then reinsert it to confirm...",
+            flush=True,
+        )
+        # Release the session so our monitoring context doesn't conflict.
+        self._close_pcsc_connection()
+
+        confirmed = threading.Event()
+
+        def _monitor():
+            removed = False
+            end_time = time.time() + timeout
+            while time.time() < end_time and not confirmed.is_set():
+                present = self._is_card_on_reader()
+                if not removed and not present:
+                    removed = True
+                    logging.info("Card removed — reinsert to confirm presence...")
+                elif removed and present:
+                    confirmed.set()
+                    return
+                time.sleep(0.3)
+
+        threading.Thread(target=_monitor, daemon=True).start()
+
+        deadline = time.time() + timeout
+        while not confirmed.is_set() and time.time() < deadline:
+            self._send_keepalive(channel, 0x02)  # STATUS_UPNEEDED
+            confirmed.wait(timeout=0.5)
+
+        if confirmed.is_set():
+            print("[+] Card tap confirmed.", flush=True)
+            return True
+        print("[-] Timed out waiting for card tap.", flush=True)
+        return False
+
     def handle_cbor(self, channel: List[int], buffer: bytes) -> Optional[bytes]:
-        """Handling an incoming CBOR command."""
+        """Handle an incoming CBOR command."""
+        # Gate user presence (UP) once per authentication transaction.
+        #
+        # Chrome's ClientPIN flow when a PIN is set:
+        #   getPINRetries → [Chrome shows PIN dialog] → getKeyAgreement → getPinUvAuthToken
+        #
+        # We gate at getPINRetries (subCommand 1) — the earliest point, before Chrome
+        # shows the PIN dialog — so the card tap always precedes PIN entry.
+        # _up_confirmed prevents re-prompting within the same transaction.
+        if self.require_up and len(buffer) > 0 and not self._up_confirmed:
+            should_gate = False
+            cmd_name = None
+
+            if buffer[0] == 0x06:  # authenticatorClientPIN
+                sub = self._get_client_pin_sub_command(buffer)
+                if sub == 1:  # getPINRetries — Chrome has not yet shown the PIN dialog
+                    should_gate = True
+                    cmd_name = "authenticatorClientPIN(getPINRetries)"
+            elif buffer[0] in (0x01, 0x02):
+                cmd_name = {
+                    0x01: "authenticatorMakeCredential",
+                    0x02: "authenticatorGetAssertion",
+                }.get(buffer[0], "?")
+                should_gate = True
+
+            if should_gate:
+                logging.info(
+                    "User-presence gate: waiting before %s — tap the card reader to continue.",
+                    cmd_name,
+                )
+                if not self._wait_for_card_tap(channel):
+                    return bytes([0x31])  # CTAP2_ERR_USER_ACTION_TIMEOUT
+                self._up_confirmed = True
+
+        # Acquire (or re-acquire) the CTAP device.  The card tap closes the PC/SC
+        # session, so get_pcsc_device() reconnects transparently after reinsertion.
         ctap = self.get_pcsc_device(channel)
         if ctap is None:
             return None
+
         logging.debug(f"Sending CBOR to device {ctap}: {buffer.hex()}")
         try:
             res = ctap.call(cmd=CommandType.CBOR, data=buffer)
-            return res
         except CtapError as e:
             logging.info(f"Got CTAP error response from device: {e}")
-            return bytes([e.code])
+            res = bytes([e.code])
+
+        # Reset after each credential command so the next authentication prompts again.
+        if len(buffer) > 0 and buffer[0] in (0x01, 0x02):
+            self._up_confirmed = False
+
+        return res
 
     def handle_cancel(self, channel: List[int], buffer: bytes) -> Optional[bytes]:
         channel_key = self.get_channel_key(channel)

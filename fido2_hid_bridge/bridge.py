@@ -27,6 +27,9 @@ your Cryptnox smartcard via PC/SC interface.
 
 Based on fido2-hid-bridge by Bryan Jacobs
 Supported browsers: Chrome, Chromium
+User presence: remove and reinsert the card on the reader when prompted.
+  This happens before the PIN dialog so Chrome shows "touch your security key" first.
+  Use --no-require-up to skip.
 Press Ctrl+C to stop
 """.format(version=__version__)
 
@@ -38,9 +41,9 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-async def run_device() -> None:
+async def run_device(require_up: bool = True) -> None:
     """Asynchronously run the event loop."""
-    device = CTAPHIDDevice()
+    device = CTAPHIDDevice(require_up=require_up)
     await device.start()
 
 
@@ -67,7 +70,17 @@ def main():
         action='store_true',
         help='Suppress startup info output'
     )
+    parser.add_argument(
+        '--no-require-up',
+        action='store_true',
+        help=(
+            'Disable the user-presence gate. By default, before the PIN dialog the bridge '
+            'sends KEEPALIVE UPNEEDED to Chrome and waits for the card to be removed and '
+            'reinserted on the reader. PIN prompts (UV) are separate and unaffected.'
+        ),
+    )
     args = parser.parse_args()
+    require_up = not args.no_require_up
     
     # Setup logging
     logging.basicConfig(
@@ -85,12 +98,16 @@ def main():
         print(STARTUP_INFO)
     
     logging.info("Starting Cryptnox FIDO2 Bridge...")
+    logging.info(
+        "User presence gate: %s (remove+reinsert card before PIN dialog unless --no-require-up).",
+        "ENABLED" if require_up else "disabled",
+    )
     logging.info("Waiting for Cryptnox card...")
     logging.info("Open Chrome and navigate to a WebAuthn site (e.g., https://webauthn.io/)")
     
     try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(run_device())
+        loop.run_until_complete(run_device(require_up=require_up))
         loop.run_forever()
     except PermissionError:
         logging.error("Permission denied accessing /dev/uhid")
@@ -101,4 +118,3 @@ def main():
         if args.debug == logging.DEBUG:
             raise
         sys.exit(1)
-

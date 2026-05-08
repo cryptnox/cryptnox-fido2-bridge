@@ -9,7 +9,7 @@
 <br/>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
 `cryptnox-fido2-bridge` is a Linux-only Python bridge that creates a virtual USB-HID device, enabling browsers to use FIDO2 smart cards for **WebAuthn/FIDO2** authentication. It translates CTAP2 commands from the browser into PC/SC APDUs for the card.
 
@@ -60,17 +60,23 @@ This enables using PC/SC smartcards in browsers that only support USB-HID authen
 ## Installation
 
 > [!IMPORTANT]
-> This bridge requires **Linux** (Ubuntu 22.04+, Debian 12+, or similar) with **Python 3.12 or newer** in the 3.x line (`^3.12` in `pyproject.toml`; `.python-version` pins **3.12** for local development).
+> Requires **Linux** (Ubuntu 22.04+, Debian 12+, or similar) and **Python 3.12 or newer**.
+> Check your version with `python3 --version`.
+
+### Prerequisites
+
+Install system dependencies (required for all installation methods below):
+
+```bash
+sudo apt update
+sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig \
+    python3-venv python3-dev build-essential libffi-dev
+sudo systemctl enable --now pcscd
+```
 
 ### From source
 
 ```bash
-# Install dependencies
-sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3.12-venv python3.12-dev build-essential libffi-dev
-sudo systemctl enable --now pcscd
-
-# Clone and install
 git clone https://github.com/Cryptnox/cryptnox-fido2-bridge.git
 cd cryptnox-fido2-bridge
 pip install poetry
@@ -83,12 +89,7 @@ sudo -E poetry run cryptnox-fido2-bridge
 ### Using pipx
 
 ```bash
-# Install dependencies
-sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig pipx python3.12-dev build-essential libffi-dev
-sudo systemctl enable --now pcscd
-
-# Install the bridge
+sudo apt install -y pipx
 pipx install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
 
 # Run (use full path or add ~/.local/bin to PATH)
@@ -98,16 +99,8 @@ sudo -E ~/.local/bin/cryptnox-fido2-bridge
 ### Using virtual environment
 
 ```bash
-# Install dependencies
-sudo apt update
-sudo apt install -y pcscd pcsc-tools libpcsclite-dev swig python3.12-venv python3.12-dev build-essential libffi-dev
-sudo systemctl enable --now pcscd
-
-# Create and activate virtual environment (use 3.12 to match this repo)
-python3.12 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-
-# Install the bridge
 pip install git+https://github.com/Cryptnox/cryptnox-fido2-bridge.git
 
 # Run
@@ -231,25 +224,10 @@ The **CryptnoxCR** USB contact reader (`0x05F8:0x0018`) is listed in upstream **
    }' /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist && sudo systemctl restart pcscd.socket pcscd && pcsc_scan
    ```
 
-`pcsc_scan` itself is only a **test tool** from `pcsc-tools`; it does not ship reader definitions. Seeing **CryptnoxCR** there means `pcscd` + CCID already know the device.
-
----
-
-## Security notes
-
-- The bridge runs locally and does not transmit data over the network
-- Private keys never leave your smart card
-- The virtual HID device is only accessible locally
-
----
-
-## Credits
-
-Based on [fido2-hid-bridge](https://github.com/BryanJacobs/fido2-hid-bridge) by Bryan Jacobs.
-
 ---
 
 ## License
 
-- Based on MIT-licensed code originally by Bryan Jacobs on the [fido2-hid-bridge](https://github.com/BryanJacobs/fido2-hid-bridge) repo.
-- MIT License - see [LICENSE](LICENSE) file for details.
+`cryptnox-fido2-bridge` is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
+
+This project is based on [fido2-hid-bridge](https://github.com/BryanJacobs/fido2-hid-bridge) by Bryan Jacobs, also MIT-licensed.

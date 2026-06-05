@@ -15,8 +15,12 @@ Restart=on-failure
 RestartSec=10s
 
 # Security settings
-NoNewPrivileges=false
+NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
 
 # Logging
 StandardOutput=journal

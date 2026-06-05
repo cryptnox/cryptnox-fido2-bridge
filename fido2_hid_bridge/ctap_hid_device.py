@@ -75,7 +75,7 @@ class CTAPHIDDevice:
 
     def __init__(self, require_up: bool = True):
         self.require_up = require_up
-        self._up_confirmed: bool = False
+        self._up_confirmed_channels: set = set()
         self.device = UHIDDevice(
             vid=VID,
             pid=PID,
@@ -156,7 +156,7 @@ class CTAPHIDDevice:
         if self.reference_count == 0:
             # Clear all state
             self.channels_to_state = {}
-            self._up_confirmed = False
+            self._up_confirmed_channels = set()
             self._close_pcsc_connection()
 
     def process_hid_message(self, buffer: List[int], report_type: _ReportType) -> None:
@@ -222,7 +222,9 @@ class CTAPHIDDevice:
         logging.debug(f"INIT on channel {channel}")
 
         if channel == BROADCAST_CHANNEL:
-            assert len(buffer) == 8
+            if len(buffer) != 8:
+                self.send_error(channel, 0x01)  # CTAP1_ERR_INVALID_LENGTH
+                return None
 
             new_channel = self.assign_channel_id()
 
@@ -360,23 +362,29 @@ class CTAPHIDDevice:
 
     def handle_cbor(self, channel: List[int], buffer: bytes) -> Optional[bytes]:
         """Handle an incoming CBOR command."""
-        # Gate user presence (UP) once per authentication transaction.
+        # Gate user presence (UP) once per authentication transaction, scoped per channel.
         #
         # Chrome's ClientPIN flow when a PIN is set:
         #   getPINRetries → [Chrome shows PIN dialog] → getKeyAgreement → getPinUvAuthToken
         #
-        # We gate at getPINRetries (subCommand 1) — the earliest point, before Chrome
-        # shows the PIN dialog — so the card tap always precedes PIN entry.
-        # _up_confirmed prevents re-prompting within the same transaction.
-        if self.require_up and len(buffer) > 0 and not self._up_confirmed:
+        # We gate at the first authenticatorClientPIN call (any subCommand) — the earliest
+        # point, before Chrome shows the PIN dialog — so the card tap always precedes PIN
+        # entry.  We also gate makeCredential and getAssertion directly.
+        # _up_confirmed_channels prevents re-prompting within the same transaction on the
+        # same channel, while keeping independent channels isolated from each other.
+        channel_key = self.get_channel_key(channel)
+        if self.require_up and len(buffer) > 0 and channel_key not in self._up_confirmed_channels:
             should_gate = False
             cmd_name = None
 
-            if buffer[0] == 0x06:  # authenticatorClientPIN
+            if buffer[0] == 0x06:  # authenticatorClientPIN (any subCommand)
+                should_gate = True
                 sub = self._get_client_pin_sub_command(buffer)
-                if sub == 1:  # getPINRetries — Chrome has not yet shown the PIN dialog
-                    should_gate = True
-                    cmd_name = "authenticatorClientPIN(getPINRetries)"
+                sub_name = {1: "getPINRetries", 2: "getKeyAgreement", 3: "setPIN",
+                            4: "changePIN", 5: "getPinUvAuthToken",
+                            6: "getPinUvAuthTokenUsingUvWithPermissions",
+                            9: "getPinUvAuthTokenUsingPinWithPermissions"}.get(sub, f"sub={sub}")
+                cmd_name = f"authenticatorClientPIN({sub_name})"
             elif buffer[0] in (0x01, 0x02):
                 cmd_name = {
                     0x01: "authenticatorMakeCredential",
@@ -391,7 +399,7 @@ class CTAPHIDDevice:
                 )
                 if not self._wait_for_card_tap(channel):
                     return bytes([0x31])  # CTAP2_ERR_USER_ACTION_TIMEOUT
-                self._up_confirmed = True
+                self._up_confirmed_channels.add(channel_key)
 
         # Acquire (or re-acquire) the CTAP device.  The card tap closes the PC/SC
         # session, so get_pcsc_device() reconnects transparently after reinsertion.
@@ -406,9 +414,10 @@ class CTAPHIDDevice:
             logging.info(f"Got CTAP error response from device: {e}")
             res = bytes([e.code])
 
-        # Reset after each credential command so the next authentication prompts again.
+        # Reset per-channel confirmation after each credential command so the next
+        # authentication prompts again.
         if len(buffer) > 0 and buffer[0] in (0x01, 0x02):
-            self._up_confirmed = False
+            self._up_confirmed_channels.discard(channel_key)
 
         return res
 

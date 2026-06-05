@@ -83,7 +83,7 @@ pip install poetry
 poetry install
 
 # Run
-sudo -E poetry run cryptnox-fido2-bridge
+sudo -E env PATH=$PATH poetry run cryptnox-fido2-bridge
 ```
 
 ### Using pipx
@@ -204,25 +204,49 @@ pcsc_scan
 
 ### CryptnoxCR reader and CCID (PC/SC)
 
-The **CryptnoxCR** USB contact reader (`0x05F8:0x0018`) is listed in upstream **CCID** from **[version 1.7.1](https://github.com/LudovicRousseau/CCID/releases/tag/1.7.1)** onward. That driver is what `pcscd` uses (via the `libccid` / `ifd-ccid` bundle on Debian and Ubuntu).
+The **CryptnoxCR** USB contact reader (`0x05F8:0x0018`) is included in upstream **CCID** from **[version 1.7.1](https://github.com/LudovicRousseau/CCID/releases/tag/1.7.1)** onward. That driver is what `pcscd` uses (via the `libccid` / `ifd-ccid` bundle on Debian and Ubuntu).
 
-**What to do:**
+Check your installed version:
 
-1. Prefer **upgrading `libccid`** (and restarting `pcscd`) so `pcsc_scan` shows the reader without editing system files. Check your package version, for example:
+```bash
+dpkg -l libccid
+```
 
-   ```bash
-   dpkg -s libccid | grep ^Version:
-   ```
+If it is older than `1.7.1`, build and install from source as Ubuntu does not yet package a newer version.
 
-2. If your distribution still ships **CCID older than 1.7.1** and the reader never appears in `pcsc_scan`, either wait for a distro update or add the device to the CCID `Info.plist` (back up the file first), then restart `pcscd`:
+#### Option A — Simple install (files only)
 
-   ```bash
-   sudo cp /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist.backup
-   sudo sed -i -e '/<key>ifdVendorID<\/key>/,/<\/array>/{/<array>/a\		<string>0x05F8</string>
-   }' -e '/<key>ifdProductID<\/key>/,/<\/array>/{/<array>/a\		<string>0x0018</string>
-   }' -e '/<key>ifdFriendlyName<\/key>/,/<\/array>/{/<array>/a\		<string>CryptnoxCR Contact Reader</string>
-   }' /usr/lib/pcsc/drivers/ifd-ccid.bundle/Contents/Info.plist && sudo systemctl restart pcscd.socket pcscd && pcsc_scan
-   ```
+Installs the driver files but `dpkg` will still report the old version.
+
+```bash
+sudo apt install -y meson libusb-1.0-0-dev flex libpcsclite-dev
+wget https://ccid.apdu.fr/files/ccid-1.8.0.tar.xz
+tar -xf ccid-1.8.0.tar.xz
+cd ccid-1.8.0
+meson setup builddir
+cd builddir
+meson compile
+sudo meson install
+sudo systemctl restart pcscd.socket pcscd
+pcsc_scan -r
+```
+
+#### Option B — Install with package manager tracking (recommended)
+
+Creates a `.deb` and registers it with `dpkg` so the version is correctly tracked and can be removed with `apt remove`.
+
+```bash
+sudo apt install -y meson libusb-1.0-0-dev flex libpcsclite-dev checkinstall
+wget https://ccid.apdu.fr/files/ccid-1.8.0.tar.xz
+tar -xf ccid-1.8.0.tar.xz
+cd ccid-1.8.0
+meson setup builddir
+cd builddir
+meson compile
+sudo checkinstall --pkgname=libccid --pkgversion=1.8.0 --pkgrelease=1 --nodoc meson install
+sudo systemctl restart pcscd.socket pcscd
+pcsc_scan -r
+```
 
 ---
 
